@@ -293,7 +293,7 @@ def setup_routes(app):
                 route._handler = routes_to_hijack[path]
                 hijacked_list.add(path)
     
-    app.router.add_get("/antiseek/config", get_config)
-    app.router.add_post("/antiseek/config", update_config)
+    app.router.add_get("/api/antiseek/config", get_config)
+    app.router.add_post("/api/antiseek/config", update_config)
     
     return hijacked_list

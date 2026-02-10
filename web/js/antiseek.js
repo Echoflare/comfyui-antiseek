@@ -23,7 +23,8 @@ app.registerExtension({
                 align-items: center;
                 justify-content: center;
                 box-shadow: 0 0 5px rgba(0,0,0,0.5);
-                transition: all 0.2s;
+                transition: background 0.2s, border-color 0.2s;
+                user-select: none;
             }
             #antiseek-button:hover {
                 background: #444;
@@ -31,8 +32,6 @@ app.registerExtension({
             }
             #antiseek-panel {
                 position: fixed;
-                bottom: 50px;
-                right: 140px;
                 width: 250px;
                 background: #2b2b2b;
                 border: 1px solid #444;
@@ -104,7 +103,7 @@ app.registerExtension({
         panel.innerHTML = `
             <div class="antiseek-title">Anti-Seek Settings</div>
             <div class="antiseek-form-group">
-                <label class="antiseek-label">Salt (安全加盐)</label>
+                <label class="antiseek-label">Salt (加密盐)</label>
                 <input type="text" id="antiseek-salt" class="antiseek-input" placeholder="留空则不加盐">
             </div>
             <div class="antiseek-form-group">
@@ -128,9 +127,67 @@ app.registerExtension({
             }
         };
 
+        let isDragging = false;
+        let dragMoved = false;
+        let startX, startY, startLeft, startTop;
+
+        btn.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            dragMoved = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = btn.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop = rect.top;
+
+            btn.style.bottom = "auto";
+            btn.style.right = "auto";
+            btn.style.left = startLeft + "px";
+            btn.style.top = startTop + "px";
+
+            e.preventDefault();
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+            
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                dragMoved = true;
+            }
+
+            btn.style.left = (startLeft + dx) + "px";
+            btn.style.top = (startTop + dy) + "px";
+        });
+
+        window.addEventListener("mouseup", () => {
+            isDragging = false;
+        });
+
         btn.addEventListener("click", () => {
+            if (dragMoved) return;
+
             const isVisible = panel.classList.contains("visible");
             if (!isVisible) {
+                const btnRect = btn.getBoundingClientRect();
+                const viewportHeight = window.innerHeight;
+                
+                panel.style.left = (btnRect.left - 260) + "px";
+                if (parseInt(panel.style.left) < 10) {
+                    panel.style.left = (btnRect.right + 10) + "px";
+                }
+
+                if (btnRect.top > viewportHeight / 2) {
+                    panel.style.top = "auto";
+                    panel.style.bottom = (viewportHeight - btnRect.top + 10) + "px";
+                } else {
+                    panel.style.top = (btnRect.bottom + 10) + "px";
+                    panel.style.bottom = "auto";
+                }
+
                 panel.classList.add("visible");
                 loadConfig();
             } else {
