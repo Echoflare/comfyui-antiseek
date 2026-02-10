@@ -35,7 +35,7 @@ app.registerExtension({
                 position: absolute;
                 top: -5px;
                 right: -5px;
-                background: #e74c3c;
+                background: #4a90e2;
                 color: white;
                 border-radius: 10px;
                 padding: 0 4px;
@@ -244,6 +244,24 @@ app.registerExtension({
         };
 
         btn.addEventListener("pointerdown", onDragStart);
+
+        window.addEventListener("resize", () => {
+            if (btn.style.left && btn.style.top) {
+                const rect = btn.getBoundingClientRect();
+                const maxLeft = window.innerWidth - rect.width;
+                const maxTop = window.innerHeight - rect.height;
+
+                let currentLeft = parseFloat(btn.style.left);
+                let currentTop = parseFloat(btn.style.top);
+
+                if (currentLeft > maxLeft) {
+                    btn.style.left = Math.max(0, maxLeft) + "px";
+                }
+                if (currentTop > maxTop) {
+                    btn.style.top = Math.max(0, maxTop) + "px";
+                }
+            }
+        });
 
         function togglePanel() {
             const isVisible = panel.classList.contains("visible");
