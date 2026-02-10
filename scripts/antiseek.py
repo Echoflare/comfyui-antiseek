@@ -187,7 +187,13 @@ async def hooked_upload_image(request):
         if not image_is_duplicate:
             try:
                 img = Image.open(image.file)
-                img.save(filepath)
+                metadata = PngImagePlugin.PngInfo()
+                for k, v in img.info.items():
+                    try:
+                        metadata.add_text(str(k), str(v))
+                    except:
+                        pass
+                img.save(filepath, pnginfo=metadata)
             except Exception as e:
                 print(f"[Anti-Seek] 上传处理失败: {e}")
                 with open(filepath, "wb") as f:
@@ -228,6 +234,7 @@ async def hooked_view_image(request):
         if os.path.isfile(file_path):
             try:
                 img = Image.open(file_path)
+                original_info = img.info.copy()
                 
                 image_format = 'png'
                 quality = 90
@@ -256,7 +263,17 @@ async def hooked_view_image(request):
                     img = img.convert("RGB")
 
                 buffer = io.BytesIO()
-                img.save(buffer, format=image_format, quality=quality)
+                
+                metadata = None
+                if image_format.lower() == 'png':
+                    metadata = PngImagePlugin.PngInfo()
+                    for k, v in original_info.items():
+                        try:
+                            metadata.add_text(str(k), str(v))
+                        except:
+                            pass
+                
+                img.save(buffer, format=image_format, quality=quality, pnginfo=metadata)
                 buffer.seek(0)
                 
                 return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
