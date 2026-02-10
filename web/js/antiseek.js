@@ -1,6 +1,5 @@
 import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
-import { $el, ComfyDialog } from "../../scripts/ui.js";
 
 app.registerExtension({
     name: "AntiSeek.Settings",
@@ -26,6 +25,7 @@ app.registerExtension({
                 box-shadow: 0 0 5px rgba(0,0,0,0.5);
                 transition: background 0.2s, border-color 0.2s;
                 user-select: none;
+                touch-action: none;
             }
             #antiseek-button:hover {
                 background: #444;
@@ -129,48 +129,57 @@ app.registerExtension({
         };
 
         let isDragging = false;
-        let hasMoved = false;
-        let dragOffsetX, dragOffsetY;
+        let dragMoved = false;
+        let startX, startY;
+        let initialLeft, initialTop;
 
-        btn.addEventListener("pointerdown", (e) => {
+        const onDragStart = (e) => {
             isDragging = true;
-            hasMoved = false;
+            dragMoved = false;
+            
+            startX = e.clientX;
+            startY = e.clientY;
             
             const rect = btn.getBoundingClientRect();
-            dragOffsetX = e.clientX - rect.left;
-            dragOffsetY = e.clientY - rect.top;
-            
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
             btn.style.bottom = "auto";
             btn.style.right = "auto";
-            btn.style.left = rect.left + "px";
-            btn.style.top = rect.top + "px";
+            btn.style.left = initialLeft + "px";
+            btn.style.top = initialTop + "px";
+
+            window.addEventListener("pointermove", onDragMove);
+            window.addEventListener("pointerup", onDragEnd);
             
-            btn.setPointerCapture(e.pointerId);
             e.preventDefault();
-        });
+        };
 
-        btn.addEventListener("pointermove", (e) => {
+        const onDragMove = (e) => {
             if (!isDragging) return;
-            
-            hasMoved = true;
-            
-            const x = e.clientX - dragOffsetX;
-            const y = e.clientY - dragOffsetY;
-            
-            btn.style.left = x + "px";
-            btn.style.top = y + "px";
-        });
 
-        btn.addEventListener("pointerup", (e) => {
-            if (isDragging) {
-                isDragging = false;
-                btn.releasePointerCapture(e.pointerId);
-                
-                if (!hasMoved) {
-                    togglePanel();
-                }
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                dragMoved = true;
             }
-        });
+
+            btn.style.left = (initialLeft + dx) + "px";
+            btn.style.top = (initialTop + dy) + "px";
+        };
+
+        const onDragEnd = (e) => {
+            isDragging = false;
+            window.removeEventListener("pointermove", onDragMove);
+            window.removeEventListener("pointerup", onDragEnd);
+
+            if (!dragMoved) {
+                togglePanel();
+            }
+        };
+
+        btn.addEventListener("pointerdown", onDragStart);
 
         function togglePanel() {
             const isVisible = panel.classList.contains("visible");
@@ -178,10 +187,9 @@ app.registerExtension({
                 const btnRect = btn.getBoundingClientRect();
                 const viewportHeight = window.innerHeight;
                 
-                panel.style.left = (btnRect.left - 260) + "px";
-                if (parseInt(panel.style.left) < 10) {
-                    panel.style.left = (btnRect.right + 10) + "px";
-                }
+                let left = btnRect.left - 260;
+                if (left < 10) left = btnRect.right + 10;
+                panel.style.left = left + "px";
 
                 if (btnRect.top > viewportHeight / 2) {
                     panel.style.top = "auto";
