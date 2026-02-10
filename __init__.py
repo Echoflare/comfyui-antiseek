@@ -1,3 +1,4 @@
+import os
 from server import PromptServer
 from .scripts import antiseek
 
@@ -25,3 +26,4 @@ PromptServer.add_routes = new_add_routes
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
+WEB_DIRECTORY = "./web/js"

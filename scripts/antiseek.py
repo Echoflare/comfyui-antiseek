@@ -262,6 +262,19 @@ async def hooked_view_image(request):
 
     return web.Response(status=404)
 
+async def get_config(request):
+    return web.json_response(config)
+
+async def update_config(request):
+    try:
+        data = await request.json()
+        config.update(data)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+        return web.json_response({"status": "success"})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
 def setup_routes(app):
     routes_to_hijack = {
         "/view": hooked_view_image,
@@ -279,5 +292,8 @@ def setup_routes(app):
             for route in resource:
                 route._handler = routes_to_hijack[path]
                 hijacked_list.add(path)
+    
+    app.router.add_get("/antiseek/config", get_config)
+    app.router.add_post("/antiseek/config", update_config)
     
     return hijacked_list
