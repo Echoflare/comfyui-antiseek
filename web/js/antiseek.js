@@ -1,5 +1,6 @@
-import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { app } from "../../scripts/app.js";
+import { $el, ComfyDialog } from "../../scripts/ui.js";
 
 app.registerExtension({
     name: "AntiSeek.Settings",
@@ -103,11 +104,11 @@ app.registerExtension({
         panel.innerHTML = `
             <div class="antiseek-title">Anti-Seek Settings</div>
             <div class="antiseek-form-group">
-                <label class="antiseek-label">Salt (加密盐)</label>
+                <label class="antiseek-label">Security Salt / 安全加盐</label>
                 <input type="text" id="antiseek-salt" class="antiseek-input" placeholder="留空则不加盐">
             </div>
             <div class="antiseek-form-group">
-                <label class="antiseek-label">Key Name (元数据键名)</label>
+                <label class="antiseek-label">Metadata Key Name / 元数据键名</label>
                 <input type="text" id="antiseek-key" class="antiseek-input" value="s_tag">
             </div>
             <button id="antiseek-save" class="antiseek-btn">保存配置 (Save)</button>
@@ -128,48 +129,50 @@ app.registerExtension({
         };
 
         let isDragging = false;
-        let dragMoved = false;
-        let startX, startY, startLeft, startTop;
+        let hasMoved = false;
+        let dragOffsetX, dragOffsetY;
 
-        btn.addEventListener("mousedown", (e) => {
+        btn.addEventListener("pointerdown", (e) => {
             isDragging = true;
-            dragMoved = false;
-            startX = e.clientX;
-            startY = e.clientY;
+            hasMoved = false;
             
             const rect = btn.getBoundingClientRect();
-            startLeft = rect.left;
-            startTop = rect.top;
-
+            dragOffsetX = e.clientX - rect.left;
+            dragOffsetY = e.clientY - rect.top;
+            
             btn.style.bottom = "auto";
             btn.style.right = "auto";
-            btn.style.left = startLeft + "px";
-            btn.style.top = startTop + "px";
-
+            btn.style.left = rect.left + "px";
+            btn.style.top = rect.top + "px";
+            
+            btn.setPointerCapture(e.pointerId);
             e.preventDefault();
         });
 
-        window.addEventListener("mousemove", (e) => {
+        btn.addEventListener("pointermove", (e) => {
             if (!isDragging) return;
             
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+            hasMoved = true;
             
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                dragMoved = true;
+            const x = e.clientX - dragOffsetX;
+            const y = e.clientY - dragOffsetY;
+            
+            btn.style.left = x + "px";
+            btn.style.top = y + "px";
+        });
+
+        btn.addEventListener("pointerup", (e) => {
+            if (isDragging) {
+                isDragging = false;
+                btn.releasePointerCapture(e.pointerId);
+                
+                if (!hasMoved) {
+                    togglePanel();
+                }
             }
-
-            btn.style.left = (startLeft + dx) + "px";
-            btn.style.top = (startTop + dy) + "px";
         });
 
-        window.addEventListener("mouseup", () => {
-            isDragging = false;
-        });
-
-        btn.addEventListener("click", () => {
-            if (dragMoved) return;
-
+        function togglePanel() {
             const isVisible = panel.classList.contains("visible");
             if (!isVisible) {
                 const btnRect = btn.getBoundingClientRect();
@@ -193,7 +196,7 @@ app.registerExtension({
             } else {
                 panel.classList.remove("visible");
             }
-        });
+        }
 
         document.getElementById("antiseek-save").addEventListener("click", async () => {
             const salt = document.getElementById("antiseek-salt").value;
@@ -228,7 +231,7 @@ app.registerExtension({
             }
         });
 
-        document.addEventListener("click", (e) => {
+        document.addEventListener("pointerdown", (e) => {
             if (!panel.contains(e.target) && !btn.contains(e.target) && panel.classList.contains("visible")) {
                 panel.classList.remove("visible");
             }
