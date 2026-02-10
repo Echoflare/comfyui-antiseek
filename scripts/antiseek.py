@@ -16,6 +16,8 @@ config = {
     "antiseek_keyname": "s_tag"
 }
 
+encrypted_count = 0
+
 if os.path.exists(config_path):
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -66,6 +68,9 @@ def antiseek_save(self, fp, format=None, **params):
         pnginfo.add_text(key_name, str(seed))
         pnginfo.add_text('e_info', orig_hash)
         params['pnginfo'] = pnginfo
+        
+        global encrypted_count
+        encrypted_count += 1
         
         return _original_save(self, fp, format="PNG", **params)
     except Exception as e:
@@ -275,6 +280,9 @@ async def update_config(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": str(e)}, status=500)
 
+async def get_count(request):
+    return web.json_response({"count": encrypted_count})
+
 def setup_routes(app):
     routes_to_hijack = {
         "/view": hooked_view_image,
@@ -295,5 +303,6 @@ def setup_routes(app):
     
     app.router.add_get("/api/antiseek/config", get_config)
     app.router.add_post("/api/antiseek/config", update_config)
+    app.router.add_get("/api/antiseek/count", get_count)
     
     return hijacked_list

@@ -31,6 +31,26 @@ app.registerExtension({
                 background: #444;
                 border-color: #666;
             }
+            #antiseek-badge {
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                background: #e74c3c;
+                color: white;
+                border-radius: 10px;
+                padding: 0 4px;
+                font-size: 10px;
+                font-weight: bold;
+                min-width: 14px;
+                height: 14px;
+                line-height: 14px;
+                text-align: center;
+                border: 1px solid #222;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+                opacity: 0;
+                transition: opacity 0.3s;
+                pointer-events: none;
+            }
             #antiseek-panel {
                 position: fixed;
                 width: 250px;
@@ -90,12 +110,20 @@ app.registerExtension({
                 border-bottom: 1px solid #444;
                 padding-bottom: 8px;
             }
+            .antiseek-info {
+                margin-top: 10px;
+                font-size: 12px;
+                color: #888;
+                text-align: right;
+                border-top: 1px solid #3a3a3a;
+                padding-top: 5px;
+            }
         `;
         document.head.appendChild(style);
 
         const btn = document.createElement("div");
         btn.id = "antiseek-button";
-        btn.innerText = "🔒";
+        btn.innerHTML = `🔒<div id="antiseek-badge">0</div>`;
         btn.title = "Anti-Seek Settings";
         document.body.appendChild(btn);
 
@@ -112,8 +140,32 @@ app.registerExtension({
                 <input type="text" id="antiseek-key" class="antiseek-input" value="s_tag">
             </div>
             <button id="antiseek-save" class="antiseek-btn">保存配置 (Save)</button>
+            <div class="antiseek-info">已加密 (Encrypted): <span id="antiseek-count-text">0</span></div>
         `;
         document.body.appendChild(panel);
+
+        const updateCount = async () => {
+            try {
+                const res = await api.fetchApi("/antiseek/count");
+                if (res.ok) {
+                    const data = await res.json();
+                    const count = data.count || 0;
+                    
+                    const badge = document.getElementById("antiseek-badge");
+                    const text = document.getElementById("antiseek-count-text");
+                    
+                    if (badge && text) {
+                        badge.innerText = count > 99 ? '99+' : count;
+                        badge.style.opacity = count > 0 ? '1' : '0';
+                        text.innerText = count;
+                    }
+                }
+            } catch (e) {
+            }
+        };
+
+        setInterval(updateCount, 3000);
+        updateCount();
 
         const loadConfig = async () => {
             try {
@@ -132,6 +184,7 @@ app.registerExtension({
         let dragMoved = false;
         let startX, startY;
         let initialLeft, initialTop;
+        let btnWidth, btnHeight;
 
         const onDragStart = (e) => {
             isDragging = true;
@@ -143,6 +196,8 @@ app.registerExtension({
             const rect = btn.getBoundingClientRect();
             initialLeft = rect.left;
             initialTop = rect.top;
+            btnWidth = rect.width;
+            btnHeight = rect.height;
 
             btn.style.bottom = "auto";
             btn.style.right = "auto";
@@ -165,8 +220,17 @@ app.registerExtension({
                 dragMoved = true;
             }
 
-            btn.style.left = (initialLeft + dx) + "px";
-            btn.style.top = (initialTop + dy) + "px";
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+
+            const maxLeft = window.innerWidth - btnWidth;
+            const maxTop = window.innerHeight - btnHeight;
+
+            newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+
+            btn.style.left = newLeft + "px";
+            btn.style.top = newTop + "px";
         };
 
         const onDragEnd = (e) => {
@@ -189,6 +253,10 @@ app.registerExtension({
                 
                 let left = btnRect.left - 260;
                 if (left < 10) left = btnRect.right + 10;
+                
+                let maxPanelLeft = window.innerWidth - 270;
+                left = Math.min(left, maxPanelLeft);
+                
                 panel.style.left = left + "px";
 
                 if (btnRect.top > viewportHeight / 2) {
@@ -201,6 +269,7 @@ app.registerExtension({
 
                 panel.classList.add("visible");
                 loadConfig();
+                updateCount();
             } else {
                 panel.classList.remove("visible");
             }
