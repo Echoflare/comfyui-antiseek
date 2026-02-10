@@ -2,6 +2,7 @@ import os
 import json
 import io
 import sys
+import hashlib
 from PIL import Image, PngImagePlugin, ImageOps
 from aiohttp import web
 import folder_paths
@@ -113,6 +114,86 @@ def antiseek_open(fp, mode="r", formats=None):
 Image.Image.save = antiseek_save
 Image.open = antiseek_open
 
+def get_dir_by_type(dir_type):
+    if dir_type is None:
+        dir_type = "input"
+
+    if dir_type == "input":
+        type_dir = folder_paths.get_input_directory()
+    elif dir_type == "temp":
+        type_dir = folder_paths.get_temp_directory()
+    elif dir_type == "output":
+        type_dir = folder_paths.get_output_directory()
+    else:
+        type_dir = folder_paths.get_input_directory()
+
+    return type_dir, dir_type
+
+def compare_image_hash(filepath, image):
+    if os.path.exists(filepath):
+        with open(filepath, "rb") as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+        
+        img_pos = image.file.tell()
+        image.file.seek(0)
+        upload_hash = hashlib.sha256(image.file.read()).hexdigest()
+        image.file.seek(img_pos)
+        
+        return file_hash == upload_hash
+    return False
+
+async def hooked_upload_image(request):
+    post = await request.post()
+    image = post.get("image")
+    overwrite = post.get("overwrite")
+    image_is_duplicate = False
+
+    image_upload_type = post.get("type")
+    upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
+
+    if image and image.file:
+        filename = image.filename
+        if not filename:
+            return web.Response(status=400)
+
+        subfolder = post.get("subfolder", "")
+        full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
+        filepath = os.path.abspath(os.path.join(full_output_folder, filename))
+
+        if os.path.commonpath((upload_dir, filepath)) != upload_dir:
+            return web.Response(status=400)
+
+        if not os.path.exists(full_output_folder):
+            os.makedirs(full_output_folder)
+
+        split = os.path.splitext(filename)
+
+        if overwrite is not None and (overwrite == "true" or overwrite == "1"):
+            pass
+        else:
+            i = 1
+            while os.path.exists(filepath):
+                if compare_image_hash(filepath, image):
+                    image_is_duplicate = True
+                    break
+                filename = f"{split[0]} ({i}){split[1]}"
+                filepath = os.path.join(full_output_folder, filename)
+                i += 1
+
+        if not image_is_duplicate:
+            try:
+                img = Image.open(image.file)
+                img.save(filepath)
+            except Exception as e:
+                print(f"[Anti-Seek] 上传处理失败: {e}")
+                with open(filepath, "wb") as f:
+                    image.file.seek(0)
+                    f.write(image.file.read())
+
+        return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
+    else:
+        return web.Response(status=400)
+
 async def hooked_view_image(request):
     if "filename" in request.rel_url.query:
         filename = request.rel_url.query["filename"]
@@ -185,7 +266,12 @@ async def hooked_view_image(request):
 def setup_hijack():
     server = PromptServer.instance
     app = server.app
-    routes_to_hijack = ["/view", "/api/view"]
+    routes_to_hijack = {
+        "/view": hooked_view_image,
+        "/api/view": hooked_view_image,
+        "/upload/image": hooked_upload_image,
+        "/api/upload/image": hooked_upload_image
+    }
     hijacked_info = {}
 
     for resource in app.router.resources():
@@ -193,7 +279,7 @@ def setup_hijack():
         path = info.get("path") or info.get("formatter")
         if path in routes_to_hijack:
             for route in resource:
-                route._handler = hooked_view_image
+                route._handler = routes_to_hijack[path]
                 if path not in hijacked_info:
                     hijacked_info[path] = 0
                 hijacked_info[path] += 1
@@ -203,7 +289,7 @@ def setup_hijack():
         info_str = ", ".join([f"{k} * {v}" for k, v in hijacked_info.items()])
         print(f"[Anti-Seek] 成功注入端点: {info_str}")
     else:
-        print("[Anti-Seek] 警告: 未能注入任何视图端点")
+        print("[Anti-Seek] 警告: 未能注入任何端点")
 
 origin_add_routes = PromptServer.add_routes
 
